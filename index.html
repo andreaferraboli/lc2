@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LC-2 IDE</title>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --text-primary: #e0e0e0;
+            --text-secondary: #858585;
+            --accent: #007acc;
+            --accent-hover: #005a9e;
+            --error: #f48771;
+            --success: #89d185;
+            --warning: #dcdcaa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Monaco', 'Courier New', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .sidebar-section {
+            padding: 8px 0;
+        }
+
+        .sidebar-item {
+            padding: 6px 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 150ms;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .sidebar-item.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border-left-color: var(--accent);
+        }
+
+        /* Main editor area */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top bar */
+        .topbar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            height: 45px;
+        }
+
+        .topbar-title {
+            font-size: 13px;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .topbar-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 150ms;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--bg-tertiary);
+        }
+
+        .btn-secondary:hover {
+            background: #3e3e42;
+        }
+
+        /* Editor and panels container */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .code-editor {
+            flex: 1;
+            display: flex;
+            gap: 0;
+            min-height: 0;
+        }
+
+        .line-numbers {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            padding: 12px 8px;
+            text-align: right;
+            font-family: 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            border-right: 1px solid var(--bg-tertiary);
+            overflow-y: hidden;
+            user-select: none;
+            white-space: pre;
+        }
+
+        .editor-textarea {
+            flex: 1;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: 12px;
+            font-family: 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            z-index: 2;
+        }
+
+        /* Breakpoint indicator */
+        .breakpoint {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--error);
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+
+        /* CPU State Panel */
+        .right-panel {
+            width: 350px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            background: var(--bg-tertiary);
+        }
+
+        .panel-content {
+            padding: 12px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .registers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .register-box {
+            background: var(--bg-tertiary);
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .register-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .register-value {
+            font-family: 'Monaco', monospace;
+            font-size: 13px;
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--bg-tertiary);
+            margin: 12px 0;
+        }
+
+        /* Bottom panel */
+        .bottom-panel {
+            height: 200px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-tabs {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            padding: 0;
+            margin: 0;
+        }
+
+        .panel-tab {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 150ms;
+        }
+
+        .panel-tab:hover {
+            background: var(--bg-secondary);
+        }
+
+        .panel-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .panel-content-tab {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .panel-content-tab.active {
+            display: block;
+        }
+
+        .output-line {
+            margin: 2px 0;
+        }
+
+        .output-success {
+            color: var(--success);
+        }
+
+        .output-error {
+            color: var(--error);
+        }
+
+        .output-warning {
+            color: var(--warning);
+        }
+
+        .output-info {
+            color: var(--accent);
+        }
+
+        /* Highlight.js customization */
+        .hljs {
+            background: var(--bg-primary) !important;
+            color: var(--text-primary) !important;
+        }
+
+        @media (max-width: 1200px) {
+            .right-panel {
+                width: 300px;
+            }
+
+            .sidebar {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+
+            .right-panel {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">🔍 File Explorer</div>
+            <div class="sidebar-section">
+                <div class="sidebar-item active">📄 main.asm</div>
+                <div class="sidebar-item">📋 data.asm</div>
+            </div>
+
+            <div class="sidebar-header" style="margin-top: 16px;">🔴 Breakpoints</div>
+            <div class="sidebar-section" id="breakpointsList"></div>
+
+            <div class="sidebar-header" style="margin-top: 16px;">📚 Istruzioni LC-2</div>
+            <div class="sidebar-section">
+                <div class="sidebar-item">• ADD, AND, NOT</div>
+                <div class="sidebar-item">• LD, LDI, LDR, ST, STI, STR</div>
+                <div class="sidebar-item">• LEA, BR, JMP</div>
+                <div class="sidebar-item">• TRAP, HALT</div>
+            </div>
+        </div>
+
+        <!-- Main editor area -->
+        <div class="editor-area">
+            <!-- Top bar -->
+            <div class="topbar">
+                <div class="topbar-title">📝 main.asm</div>
+                <div class="topbar-buttons">
+                    <button class="btn btn-primary" onclick="runProgram()">▶ Esegui</button>
+                    <button class="btn btn-primary" onclick="debugProgram()" style="background: #6a4d9b;">🐛
+                        Debug</button>
+                    <button class="btn btn-secondary" onclick="stepProgram()">⬇ Step</button>
+                    <button class="btn btn-secondary" onclick="resetSimulator()">🔄 Reset</button>
+                    <button class="btn btn-secondary" onclick="loadExample()">📖 Esempio</button>
+                </div>
+            </div>
+
+            <!-- Editor content -->
+            <div class="editor-container">
+                <div class="editor-panel">
+                    <div class="code-editor">
+                        <div class="line-numbers" id="lineNumbers"></div>
+                        <textarea id="editor" class="editor-textarea" spellcheck="false" placeholder="; Scrivi il tuo codice LC-2 qui...
+; Esempi:
+; ADD R1, R2, R3    - Somma
+; AND R1, R2, R3    - AND logico
+; LD R1, LABEL      - Carica
+; BR LABEL          - Branch
+; HALT              - Ferma"></textarea>
+                    </div>
+                </div>
+
+                <!-- Right panel: CPU State -->
+                <div class="right-panel">
+                    <div class="panel-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>💾 CPU State</span>
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;"
+                            onclick="toggleDisplayMode()">HEX</button>
+                    </div>
+                    <div class="panel-content">
+                        <div>
+                            <div
+                                style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">
+                                Registri Generali</div>
+                            <div class="registers-grid" id="generalRegs"></div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div>
+                            <div
+                                style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">
+                                Registri Speciali</div>
+                            <div class="registers-grid" id="specialRegs"></div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div>
+                            <div
+                                style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">
+                                Condition Codes</div>
+                            <div class="registers-grid" id="conditionCodes"></div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div>
+                            <div
+                                style="font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">
+                                Memoria (x3000)</div>
+                            <div id="memoryPreview"
+                                style="font-family: 'Monaco', monospace; font-size: 11px; color: var(--accent); white-space: pre-wrap; word-break: break-all;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom panel -->
+            <div class="bottom-panel">
+                <div class="panel-tabs">
+                    <div class="panel-tab active" onclick="switchTab(event, 'console')">📟 Console</div>
+                    <div class="panel-tab" onclick="switchTab(event, 'debugger')">🔍 Debugger</div>
+                    <div class="panel-tab" onclick="switchTab(event, 'memory')">💾 Memoria</div>
+                </div>
+
+                <div class="panel-content-tab active" id="consoleTab">
+                    <div id="output"></div>
+                </div>
+
+                <div class="panel-content-tab" id="debuggerTab">
+                    <div id="debuggerInfo"></div>
+                </div>
+
+                <div class="panel-content-tab" id="memoryTab">
+                    <div id="fullMemory"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const LC2 = {
+            registers: new Uint16Array(8),
+            PC: 0x3000,
+            IR: 0,
+            N: 0, Z: 0, P: 0,
+            memory: new Uint16Array(65536),
+            instructions: [],
+            symbolTable: {},
+            breakpoints: new Set(),
+            isRunning: false,
+            isPaused: false,
+            isDebugging: false,
+            displayMode: 'hex', // 'hex' or 'dec'
+
+            OPCODES: {
+                'ADD': 0x1, 'AND': 0x5, 'NOT': 0x9,
+                'LD': 0x2, 'LDI': 0xA, 'LDR': 0x6, 'LEA': 0xE,
+                'ST': 0x3, 'STI': 0xB, 'STR': 0x7,
+                'BR': 0x0, 'BRn': 0x0, 'BRz': 0x0, 'BRp': 0x0,
+                'JMP': 0xC, 'JSR': 0x4, 'TRAP': 0xF, 'HALT': 0xF
+            },
+
+            assemble(code) {
+                this.instructions = [];
+                this.symbolTable = {};
+                this.addressToLine = {};
+                this.memory.fill(0);
+                this.sourceCode = code;
+
+                const lines = code.split('\n');
+                const processedLines = [];
+
+                // Prepara le righe rimuovendo commenti ma mantenendo la traccia dei numeri di riga
+                lines.forEach((line, idx) => {
+                    const trimmed = line.trim();
+                    const commentIndex = trimmed.indexOf(';');
+                    const cleaned = commentIndex !== -1 ? trimmed.substring(0, commentIndex).trim() : trimmed;
+
+                    if (cleaned) {
+                        processedLines.push({
+                            text: cleaned,
+                            lineNumber: idx + 1,
+                            originalText: line.trim()
+                        });
+                    }
+                });
+
+                let currentAddr = 0x3000;
+
+                // PRIMO PASSAGGIO: raccolta label
+                processedLines.forEach(lineObj => {
+                    const line = lineObj.text;
+
+                    if (line.startsWith('.ORIG')) {
+                        currentAddr = parseInt(line.split(/\s+/)[1].substring(1), 16);
+                    } else if (line.startsWith('.END')) {
+                        return;
+                    } else if (line.startsWith('.FILL') || line.startsWith('.BLKW') || line.startsWith('.STRINGZ')) {
+                        // Estrai l'etichetta se presente prima della direttiva
+                        const parts = line.split(/\s+/);
+                        if (parts.length > 0 && !parts[0].match(/^\.(FILL|BLKW|STRINGZ)/i)) {
+                            this.symbolTable[parts[0]] = currentAddr;
+                        }
+                        this.addressToLine[currentAddr] = lineObj.lineNumber;
+                        currentAddr++;
+                    } else if (!line.startsWith('.')) {
+                        const parts = line.split(/\s+/);
+                        if (parts.length > 0 && !parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|BR|JMP|JSR|TRAP|HALT)/i)) {
+                            this.symbolTable[parts[0]] = currentAddr;
+                        }
+                        this.addressToLine[currentAddr] = lineObj.lineNumber;
+                        currentAddr++;
+                    }
+                });
+
+                // SECONDO PASSAGGIO: assemblaggio
+                currentAddr = 0x3000;
+                processedLines.forEach(lineObj => {
+                    const line = lineObj.text;
+
+                    if (line.startsWith('.ORIG')) {
+                        currentAddr = parseInt(line.split(/\s+/)[1].substring(1), 16);
+                    } else if (line.includes('.FILL')) {
+                        // Handle both ".FILL #value" and "LABEL .FILL #value" formats
+                        const fillIndex = line.indexOf('.FILL');
+                        const fillPart = line.substring(fillIndex);
+                        const val = fillPart.match(/#(-?\d+)|x([0-9A-Fa-f]+)/);
+                        this.memory[currentAddr] = val ? (val[1] !== undefined ? parseInt(val[1]) & 0xFFFF : parseInt(val[2], 16)) : 0;
+                        this.instructions.push({
+                            addr: currentAddr,
+                            text: line,
+                            type: 'data',
+                            lineNumber: lineObj.lineNumber
+                        });
+                        currentAddr++;
+                    } else if (!line.startsWith('.')) {
+                        const parts = line.split(/\s+/);
+                        let instrLine = line;
+                        if (parts.length > 0 && !parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|BR|JMP|JSR|TRAP|HALT)/i)) {
+                            instrLine = parts.slice(1).join(' ');
+                        }
+
+                        if (instrLine) {
+                            const instr = this.parseInstruction(instrLine, currentAddr);
+                            if (instr !== null) {
+                                this.memory[currentAddr] = instr;
+                                this.instructions.push({
+                                    addr: currentAddr,
+                                    text: instrLine,
+                                    machine: instr,
+                                    type: 'instr',
+                                    lineNumber: lineObj.lineNumber
+                                });
+                            }
+                        }
+                        currentAddr++;
+                    }
+                });
+
+                return this.instructions.length > 0;
+            },
+
+            parseInstruction(line, addr) {
+                const parts = line.split(/[\s,()]+/).filter(p => p);
+                if (!parts[0]) return null;
+
+                const op = parts[0].toUpperCase();
+
+                if (op === 'HALT') return 0xF025;
+
+                if (op.startsWith('BR')) {
+                    const cc = op.slice(2) || 'nzp';
+                    let ccBits = 0;
+                    if (cc.includes('n') || cc.includes('N')) ccBits |= 4;
+                    if (cc.includes('z') || cc.includes('Z')) ccBits |= 2;
+                    if (cc.includes('p') || cc.includes('P')) ccBits |= 1;
+
+                    const label = parts[1];
+                    const targetAddr = this.symbolTable[label];
+                    if (targetAddr === undefined) {
+                        console.warn(`Label "${label}" non trovata`);
+                        return 0;
+                    }
+                    const offset = (targetAddr - addr - 1) & 0x1FF;
+                    return (0x0 << 12) | (ccBits << 9) | offset;
+                }
+
+                if (op === 'ADD' || op === 'AND') {
+                    const dr = parseInt(parts[1].substring(1));
+                    const sr1 = parseInt(parts[2].substring(1));
+                    const isImm = parts[3].startsWith('#');
+                    const val = isImm ? (parseInt(parts[3].substring(1)) & 0x1F) : parseInt(parts[3].substring(1));
+                    const opcode = op === 'ADD' ? 0x1 : 0x5;
+                    return (opcode << 12) | (dr << 9) | (sr1 << 6) | (isImm ? (1 << 5) | val : val);
+                }
+
+                if (op === 'NOT') {
+                    const dr = parseInt(parts[1].substring(1));
+                    const sr = parseInt(parts[2].substring(1));
+                    return (0x9 << 12) | (dr << 9) | (sr << 6) | 0x3F;
+                }
+
+                if (op === 'LD' || op === 'LDI' || op === 'ST' || op === 'STI' || op === 'LEA') {
+                    const opcodes = { 'LD': 0x2, 'LDI': 0xA, 'ST': 0x3, 'STI': 0xB, 'LEA': 0xE };
+                    const dr = parseInt(parts[1].substring(1));
+                    const label = parts[2];
+                    const targetAddr = this.symbolTable[label];
+                    if (targetAddr === undefined) {
+                        console.warn(`Label "${label}" non trovata`);
+                        return 0;
+                    }
+                    const offset = (targetAddr - addr - 1) & 0x1FF;
+                    return (opcodes[op] << 12) | (dr << 9) | offset;
+                }
+
+                if (op === 'LDR' || op === 'STR') {
+                    const opcodes = { 'LDR': 0x6, 'STR': 0x7 };
+                    const dr = parseInt(parts[1].substring(1));
+                    const br = parseInt(parts[2].substring(1));
+                    const offset = parseInt(parts[3].substring(1)) & 0x3F;
+                    return (opcodes[op] << 12) | (dr << 9) | (br << 6) | offset;
+                }
+
+                if (op === 'JMP') {
+                    const br = parseInt(parts[1].substring(1));
+                    return (0xC << 12) | (br << 6);
+                }
+
+                return null;
+            },
+
+            execute() {
+                if (this.PC >= 0x10000) return false;
+                if (this.breakpoints.has(this.PC)) {
+                    addOutput(`⏸ Breakpoint raggiunto a x${this.PC.toString(16).toUpperCase().padStart(4, '0')}`, 'warning');
+                    return false;
+                }
+
+                this.IR = this.memory[this.PC];
+                const opcode = (this.IR >> 12) & 0xF;
+                const dr = (this.IR >> 9) & 0x7;
+                const sr1 = (this.IR >> 6) & 0x7;
+                const sr2 = this.IR & 0x7;
+
+                const oldPC = this.PC;
+                this.PC = (this.PC + 1) & 0xFFFF;
+
+                switch (opcode) {
+                    case 0x0: {
+                        const n = (this.IR >> 11) & 1;
+                        const z = (this.IR >> 10) & 1;
+                        const p = (this.IR >> 9) & 1;
+
+                        if ((n && this.N) || (z && this.Z) || (p && this.P)) {
+                            const offset = this.signExtend(this.IR & 0x1FF, 9);
+                            this.PC = (oldPC + 1 + offset) & 0xFFFF;
+                        }
+                        break;
+                    }
+                    case 0x1: {
+                        const imm_flag = (this.IR >> 5) & 1;
+                        const val = imm_flag ? this.signExtend(this.IR & 0x1F, 5) : this.registers[sr2];
+                        this.registers[dr] = (this.registers[sr1] + val) & 0xFFFF;
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0x5: {
+                        const imm_flag = (this.IR >> 5) & 1;
+                        const val = imm_flag ? this.signExtend(this.IR & 0x1F, 5) : this.registers[sr2];
+                        this.registers[dr] = (this.registers[sr1] & val) & 0xFFFF;
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0x9: {
+                        this.registers[dr] = (~this.registers[sr1]) & 0xFFFF;
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0x2: {
+                        const offset = this.signExtend(this.IR & 0x1FF, 9);
+                        const addr = (oldPC + 1 + offset) & 0xFFFF;
+                        this.registers[dr] = this.memory[addr];
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0x3: {
+                        const offset = this.signExtend(this.IR & 0x1FF, 9);
+                        const addr = (oldPC + 1 + offset) & 0xFFFF;
+                        this.memory[addr] = this.registers[dr];
+                        break;
+                    }
+                    case 0xA: {
+                        const offset = this.signExtend(this.IR & 0x1FF, 9);
+                        const addr = (oldPC + 1 + offset) & 0xFFFF;
+                        const finalAddr = this.memory[addr];
+                        this.registers[dr] = this.memory[finalAddr];
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0xB: {
+                        const offset = this.signExtend(this.IR & 0x1FF, 9);
+                        const addr = (oldPC + 1 + offset) & 0xFFFF;
+                        const finalAddr = this.memory[addr];
+                        this.memory[finalAddr] = this.registers[dr];
+                        break;
+                    }
+                    case 0x6: {
+                        const br = (this.IR >> 6) & 0x7;
+                        const offset = this.signExtend(this.IR & 0x3F, 6);
+                        const addr = (this.registers[br] + offset) & 0xFFFF;
+                        this.registers[dr] = this.memory[addr];
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0x7: {
+                        const br = (this.IR >> 6) & 0x7;
+                        const offset = this.signExtend(this.IR & 0x3F, 6);
+                        const addr = (this.registers[br] + offset) & 0xFFFF;
+                        this.memory[addr] = this.registers[dr];
+                        break;
+                    }
+                    case 0xE: {
+                        const offset = this.signExtend(this.IR & 0x1FF, 9);
+                        this.registers[dr] = (oldPC + 1 + offset) & 0xFFFF;
+                        this.setCC(this.registers[dr]);
+                        break;
+                    }
+                    case 0xC: {
+                        const br = (this.IR >> 6) & 0x7;
+                        this.PC = this.registers[br];
+                        break;
+                    }
+                    case 0xF: {
+                        if ((this.IR & 0xFF) === 0x25) return false;
+                        break;
+                    }
+                }
+
+                return true;
+            },
+
+            setCC(value) {
+                const signedValue = value > 0x7FFF ? value - 0x10000 : value;
+                this.N = signedValue < 0 ? 1 : 0;
+                this.Z = signedValue === 0 ? 1 : 0;
+                this.P = signedValue > 0 ? 1 : 0;
+            },
+
+            signExtend(value, bits) {
+                const signBit = (value >> (bits - 1)) & 1;
+                if (signBit) {
+                    const mask = ~((1 << bits) - 1);
+                    return (value | mask) & 0xFFFF;
+                }
+                return value & 0xFFFF;
+            },
+
+            getSourceLine(addr) {
+                return this.addressToLine[addr] || '?';
+            },
+
+            getInstructionText(addr) {
+                const instr = this.instructions.find(i => i.addr === addr);
+                return instr ? instr.text : '???';
+            }
+        };
+
+        function updateLineNumbers() {
+            const editor = document.getElementById('editor');
+            const lines = editor.value.split('\n').length;
+            let nums = '';
+            for (let i = 1; i <= lines; i++) {
+                nums += i + '\n';
+            }
+            document.getElementById('lineNumbers').textContent = nums;
+        }
+
+        function formatValue(val) {
+            if (LC2.displayMode === 'hex') {
+                return `x${val.toString(16).toUpperCase().padStart(4, '0')}`;
+            } else {
+                // Interpret as signed 16-bit integer for decimal display
+                const signed = val > 0x7FFF ? val - 0x10000 : val;
+                return signed.toString();
+            }
+        }
+
+        function updateUI() {
+            let regHTML = '';
+            for (let i = 0; i < 8; i++) {
+                regHTML += `<div class="register-box"><div class="register-label">R${i}</div><div class="register-value">${formatValue(LC2.registers[i])}</div></div>`;
+            }
+            document.getElementById('generalRegs').innerHTML = regHTML;
+
+            let specialHTML = `
+                <div class="register-box"><div class="register-label">PC</div><div class="register-value">${formatValue(LC2.PC)}</div></div>
+                <div class="register-box"><div class="register-label">IR</div><div class="register-value">${formatValue(LC2.IR)}</div></div>
+            `;
+            document.getElementById('specialRegs').innerHTML = specialHTML;
+
+            let ccHTML = `
+                <div class="register-box"><div class="register-label">N</div><div class="register-value">${LC2.N}</div></div>
+                <div class="register-box"><div class="register-label">Z</div><div class="register-value">${LC2.Z}</div></div>
+                <div class="register-box"><div class="register-label">P</div><div class="register-value">${LC2.P}</div></div>
+            `;
+            document.getElementById('conditionCodes').innerHTML = ccHTML;
+
+            let memPreview = 'x3000: ';
+            for (let i = 0; i < 4; i++) {
+                memPreview += LC2.memory[0x3000 + i].toString(16).padStart(4, '0').toUpperCase() + ' ';
+            }
+            document.getElementById('memoryPreview').textContent = memPreview;
+
+            let fullMem = '';
+            for (let i = 0x3000; i < 0x3020; i++) {
+                if ((i - 0x3000) % 8 === 0) {
+                    fullMem += `\nx${i.toString(16).toUpperCase().padStart(4, '0')}: `;
+                }
+                fullMem += LC2.memory[i].toString(16).padStart(4, '0').toUpperCase() + ' ';
+            }
+            document.getElementById('fullMemory').textContent = fullMem;
+        }
+
+        function addOutput(text, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = `output-line output-${type}`;
+            div.textContent = text;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function switchTab(event, tab) {
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel-content-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+
+        function runProgram() {
+            const code = document.getElementById('editor').value;
+            resetSimulator(true);
+
+            if (!LC2.assemble(code)) {
+                addOutput('✗ Errore nell\'assemblaggio', 'error');
+                return;
+            }
+
+            addOutput('▶ Esecuzione in corso...', 'info');
+            addOutput(`  Symbol Table: ${JSON.stringify(LC2.symbolTable)}`, 'info');
+
+            let steps = 0;
+            while (steps < 10000) {
+                if (!LC2.execute()) break;
+                steps++;
+            }
+
+            addOutput(`✓ Programma terminato (${steps} step)`, 'success');
+            addOutput(`  Risultato in R3: ${formatValue(LC2.registers[3])}`, 'success');
+            updateUI();
+        }
+
+        function debugProgram() {
+            const code = document.getElementById('editor').value;
+            resetSimulator(true);
+
+            if (!LC2.assemble(code)) {
+                addOutput('✗ Errore nell\'assemblaggio', 'error');
+                return;
+            }
+
+            LC2.isDebugging = true;
+            addOutput('🐛 Debug mode attivato - Usa Step per avanzare', 'warning');
+            addOutput(`  Symbol Table: ${JSON.stringify(LC2.symbolTable)}`, 'info');
+            updateUI();
+        }
+
+        function stepProgram() {
+            if (!LC2.isDebugging) {
+                addOutput('⚠ Avvia il debug prima', 'warning');
+                return;
+            }
+
+            const oldPC = LC2.PC;
+            const lineNumber = LC2.getSourceLine(oldPC);
+            const instrText = LC2.getInstructionText(oldPC);
+
+            if (LC2.execute()) {
+                addOutput(`→ Riga ${lineNumber} | PC: x${oldPC.toString(16).toUpperCase().padStart(4, '0')} | ${instrText}`, 'warning');
+                addOutput(`  IR=${formatValue(LC2.IR)} | R3=${formatValue(LC2.registers[3])} | CC=[N:${LC2.N} Z:${LC2.Z} P:${LC2.P}]`, 'info');
+            } else {
+                addOutput(`✓ Riga ${lineNumber} | ${instrText} - Programma terminato`, 'success');
+                addOutput(`  Risultato finale in R3: ${formatValue(LC2.registers[3])}`, 'success');
+                LC2.isDebugging = false;
+            }
+            updateUI();
+        }
+
+        function toggleDisplayMode() {
+            LC2.displayMode = LC2.displayMode === 'hex' ? 'dec' : 'hex';
+            const btn = event.target;
+            btn.textContent = LC2.displayMode === 'hex' ? 'HEX' : 'DEC';
+            updateUI();
+        }
+
+        function resetSimulator() {
+            LC2.registers.fill(0);
+            LC2.PC = 0x3000;
+            LC2.isDebugging = false;
+            document.getElementById('output').innerHTML = '';
+            addOutput('🔄 Simulatore resettato', 'info');
+            updateUI();
+        }
+
+        function loadExample() {
+            document.getElementById('editor').value = `.ORIG x3000
+LD R1, VAL1         ; R1 = 20
+LD R2, VAL2         ; R2 = 5
+ADD R1, R2, R1      ; R1 = 5 + 20 = 25
+ADD R3, R1, #0      ; R3 = 25 + 0 = 25
+HALT                ; Fine programma
+
+VAL1 .FILL #20      ; Valore 20
+VAL2 .FILL #5       ; Valore 5
+.END`;
+            updateLineNumbers();
+            addOutput('📖 Programma di esempio caricato: 20 + 5 = 25', 'success');
+            addOutput('   Risultato atteso in R3: 25', 'success');
+        }
+
+        document.getElementById('editor').addEventListener('input', updateLineNumbers);
+        document.getElementById('editor').addEventListener('scroll', () => {
+            document.getElementById('lineNumbers').scrollTop = document.getElementById('editor').scrollTop;
+        });
+
+        updateLineNumbers();
+        updateUI();
+    </script>
+</body>
+
+</html>
