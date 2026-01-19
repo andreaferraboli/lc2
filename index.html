@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LC-2 IDE</title>
+    <title>LC-2 IDE Fixato</title>
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -368,7 +368,6 @@
 
 <body>
     <div class="layout">
-        <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">🔍 File Explorer</div>
             <div class="sidebar-section">
@@ -388,9 +387,7 @@
             </div>
         </div>
 
-        <!-- Main editor area -->
         <div class="editor-area">
-            <!-- Top bar -->
             <div class="topbar">
                 <div class="topbar-title">📝 main.asm</div>
                 <div class="topbar-buttons">
@@ -403,22 +400,30 @@
                 </div>
             </div>
 
-            <!-- Editor content -->
             <div class="editor-container">
                 <div class="editor-panel">
                     <div class="code-editor">
                         <div class="line-numbers" id="lineNumbers"></div>
-                        <textarea id="editor" class="editor-textarea" spellcheck="false" placeholder="; Scrivi il tuo codice LC-2 qui...
-; Esempi:
-; ADD R1, R2, R3    - Somma
-; AND R1, R2, R3    - AND logico
-; LD R1, LABEL      - Carica
-; BR LABEL          - Branch
-; HALT              - Ferma"></textarea>
+                        <textarea id="editor" class="editor-textarea" spellcheck="false"
+                            placeholder="Scrivi qui il tuo codice...">
+.ORIG x3000
+LEA R0, STRINGA
+AND R1, R1, #0
+
+Ciclo LDR R2, R0, #0
+BRz FINE
+
+ADD R1, R1, #1
+ADD R0, R0, #1
+BRnzp Ciclo
+
+FINE HALT
+STRINGA .STRINGZ "Ciao"
+.END
+</textarea>
                     </div>
                 </div>
 
-                <!-- Right panel: CPU State -->
                 <div class="right-panel">
                     <div class="panel-header"
                         style="display: flex; justify-content: space-between; align-items: center;">
@@ -466,7 +471,6 @@
                 </div>
             </div>
 
-            <!-- Bottom panel -->
             <div class="bottom-panel">
                 <div class="panel-tabs">
                     <div class="panel-tab active" onclick="switchTab(event, 'console')">📟 Console</div>
@@ -522,7 +526,7 @@
                 const lines = code.split('\n');
                 const processedLines = [];
 
-                // Prepara le righe rimuovendo commenti ma mantenendo la traccia dei numeri di riga
+                // Prepara le righe rimuovendo commenti
                 lines.forEach((line, idx) => {
                     const trimmed = line.trim();
                     const commentIndex = trimmed.indexOf(';');
@@ -539,71 +543,119 @@
 
                 let currentAddr = 0x3000;
 
-                // PRIMO PASSAGGIO: raccolta label
+                // --- PRIMO PASSAGGIO: raccolta label ---
                 processedLines.forEach(lineObj => {
                     const line = lineObj.text;
+                    const parts = line.trim().split(/\s+/);
 
                     if (line.startsWith('.ORIG')) {
-                        currentAddr = parseInt(line.split(/\s+/)[1].substring(1), 16);
-                    } else if (line.startsWith('.END')) {
+                        currentAddr = parseInt(parts[1].substring(1), 16);
                         return;
-                    } else if (line.startsWith('.FILL') || line.startsWith('.BLKW') || line.startsWith('.STRINGZ')) {
-                        // Estrai l'etichetta se presente prima della direttiva
-                        const parts = line.split(/\s+/);
-                        if (parts.length > 0 && !parts[0].match(/^\.(FILL|BLKW|STRINGZ)/i)) {
-                            this.symbolTable[parts[0]] = currentAddr;
+                    }
+
+                    if (line.startsWith('.END')) return;
+
+                    // Gestione Label
+                    let label = null;
+                    let remainder = line;
+
+                    // CORREZIONE QUI: Verifichiamo se parts[0] non è un'istruzione, includendo BR e varianti
+                    // Se NON è una keyword nota E non inizia con . allora è una label
+                    const isInstruction = parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|JMP|JSR|TRAP|HALT|RET|RTI)$/i)
+                        || parts[0].toUpperCase().startsWith('BR');
+
+                    if (!parts[0].startsWith('.') && !isInstruction) {
+                        label = parts[0];
+                        this.symbolTable[label] = currentAddr;
+                        const labelIndex = line.indexOf(label);
+                        remainder = line.substring(labelIndex + label.length).trim();
+                    }
+
+                    this.addressToLine[currentAddr] = lineObj.lineNumber;
+
+                    // Calcolo dimensione
+                    if (remainder.match(/^\.STRINGZ/i)) {
+                        const strMatch = remainder.match(/"([^"]*)"/);
+                        if (strMatch) {
+                            currentAddr += strMatch[1].length + 1;
+                        } else {
+                            currentAddr += 1;
                         }
-                        this.addressToLine[currentAddr] = lineObj.lineNumber;
-                        currentAddr++;
-                    } else if (!line.startsWith('.')) {
-                        const parts = line.split(/\s+/);
-                        if (parts.length > 0 && !parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|BR|JMP|JSR|TRAP|HALT)/i)) {
-                            this.symbolTable[parts[0]] = currentAddr;
+                    } else if (remainder.match(/^\.BLKW/i)) {
+                        const countMatch = remainder.match(/\.BLKW\s+#?(\d+)/i) || remainder.match(/\.BLKW\s+x([0-9A-F]+)/i);
+                        if (countMatch) {
+                            currentAddr += parseInt(countMatch[1], countMatch[1].startsWith('x') ? 16 : 10);
+                        } else {
+                            currentAddr += 1;
                         }
-                        this.addressToLine[currentAddr] = lineObj.lineNumber;
+                    } else if (remainder.length > 0) {
                         currentAddr++;
                     }
                 });
 
-                // SECONDO PASSAGGIO: assemblaggio
+                // --- SECONDO PASSAGGIO: assemblaggio ---
                 currentAddr = 0x3000;
                 processedLines.forEach(lineObj => {
                     const line = lineObj.text;
+                    const parts = line.trim().split(/\s+/);
 
                     if (line.startsWith('.ORIG')) {
-                        currentAddr = parseInt(line.split(/\s+/)[1].substring(1), 16);
-                    } else if (line.includes('.FILL')) {
-                        // Handle both ".FILL #value" and "LABEL .FILL #value" formats
-                        const fillIndex = line.indexOf('.FILL');
-                        const fillPart = line.substring(fillIndex);
-                        const val = fillPart.match(/#(-?\d+)|x([0-9A-Fa-f]+)/);
-                        this.memory[currentAddr] = val ? (val[1] !== undefined ? parseInt(val[1]) & 0xFFFF : parseInt(val[2], 16)) : 0;
-                        this.instructions.push({
-                            addr: currentAddr,
-                            text: line,
-                            type: 'data',
-                            lineNumber: lineObj.lineNumber
-                        });
-                        currentAddr++;
-                    } else if (!line.startsWith('.')) {
-                        const parts = line.split(/\s+/);
-                        let instrLine = line;
-                        if (parts.length > 0 && !parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|BR|JMP|JSR|TRAP|HALT)/i)) {
-                            instrLine = parts.slice(1).join(' ');
-                        }
+                        currentAddr = parseInt(parts[1].substring(1), 16);
+                        return;
+                    }
+                    if (line.startsWith('.END')) return;
 
-                        if (instrLine) {
-                            const instr = this.parseInstruction(instrLine, currentAddr);
-                            if (instr !== null) {
-                                this.memory[currentAddr] = instr;
-                                this.instructions.push({
-                                    addr: currentAddr,
-                                    text: instrLine,
-                                    machine: instr,
-                                    type: 'instr',
-                                    lineNumber: lineObj.lineNumber
-                                });
+                    // Rimuovi label se presente per ottenere effectiveLine
+                    let effectiveLine = line;
+                    const isInstruction = parts[0].match(/^(ADD|AND|NOT|LD|LDI|LDR|LEA|ST|STI|STR|JMP|JSR|TRAP|HALT|RET|RTI)$/i)
+                        || parts[0].toUpperCase().startsWith('BR');
+
+                    if (parts.length > 0 && !parts[0].startsWith('.') && !isInstruction) {
+                        const label = parts[0];
+                        const labelIndex = line.indexOf(label);
+                        effectiveLine = line.substring(labelIndex + label.length).trim();
+                    }
+
+                    if (effectiveLine.match(/^\.FILL/i)) {
+                        const valMatch = effectiveLine.match(/#(-?\d+)|x([0-9A-Fa-f]+)/);
+                        const val = valMatch ? (valMatch[1] !== undefined ? parseInt(valMatch[1]) : parseInt(valMatch[2], 16)) : 0;
+                        this.memory[currentAddr] = val & 0xFFFF;
+                        this.instructions.push({ addr: currentAddr, text: line, type: 'data' });
+                        currentAddr++;
+                    } else if (effectiveLine.match(/^\.STRINGZ/i)) {
+                        const strMatch = effectiveLine.match(/"([^"]*)"/);
+                        if (strMatch) {
+                            const str = strMatch[1];
+                            for (let i = 0; i < str.length; i++) {
+                                this.memory[currentAddr + i] = str.charCodeAt(i);
                             }
+                            this.memory[currentAddr + str.length] = 0;
+                            this.instructions.push({ addr: currentAddr, text: line, type: 'data', length: str.length + 1 });
+                            currentAddr += str.length + 1;
+                        } else {
+                            this.memory[currentAddr] = 0;
+                            currentAddr++;
+                        }
+                    } else if (effectiveLine.match(/^\.BLKW/i)) {
+                        const countMatch = effectiveLine.match(/^\.BLKW\s+#?(\d+)/i) || effectiveLine.match(/^\.BLKW\s+x([0-9A-F]+)/i);
+                        let count = 1;
+                        if (countMatch) {
+                            count = parseInt(countMatch[1], countMatch[1].startsWith('x') ? 16 : 10);
+                        }
+                        for (let i = 0; i < count; i++) this.memory[currentAddr + i] = 0;
+                        currentAddr += count;
+                    } else if (effectiveLine.length > 0) {
+                        // Instruction
+                        const instr = this.parseInstruction(effectiveLine, currentAddr);
+                        if (instr !== null) {
+                            this.memory[currentAddr] = instr;
+                            this.instructions.push({
+                                addr: currentAddr,
+                                text: effectiveLine,
+                                machine: instr,
+                                type: 'instr',
+                                lineNumber: lineObj.lineNumber
+                            });
                         }
                         currentAddr++;
                     }
@@ -631,7 +683,7 @@
                     const targetAddr = this.symbolTable[label];
                     if (targetAddr === undefined) {
                         console.warn(`Label "${label}" non trovata`);
-                        return 0;
+                        return 0; // NOP
                     }
                     const offset = (targetAddr - addr - 1) & 0x1FF;
                     return (0x0 << 12) | (ccBits << 9) | offset;
@@ -658,7 +710,6 @@
                     const label = parts[2];
                     const targetAddr = this.symbolTable[label];
                     if (targetAddr === undefined) {
-                        console.warn(`Label "${label}" non trovata`);
                         return 0;
                     }
                     const offset = (targetAddr - addr - 1) & 0x1FF;
@@ -908,7 +959,7 @@
             }
 
             addOutput(`✓ Programma terminato (${steps} step)`, 'success');
-            addOutput(`  Risultato in R3: ${formatValue(LC2.registers[3])}`, 'success');
+            addOutput(`  Risultato in R1: ${formatValue(LC2.registers[1])}`, 'success');
             updateUI();
         }
 
@@ -939,10 +990,10 @@
 
             if (LC2.execute()) {
                 addOutput(`→ Riga ${lineNumber} | PC: x${oldPC.toString(16).toUpperCase().padStart(4, '0')} | ${instrText}`, 'warning');
-                addOutput(`  IR=${formatValue(LC2.IR)} | R3=${formatValue(LC2.registers[3])} | CC=[N:${LC2.N} Z:${LC2.Z} P:${LC2.P}]`, 'info');
+                addOutput(`  IR=${formatValue(LC2.IR)} | R1=${formatValue(LC2.registers[1])} | CC=[N:${LC2.N} Z:${LC2.Z} P:${LC2.P}]`, 'info');
             } else {
                 addOutput(`✓ Riga ${lineNumber} | ${instrText} - Programma terminato`, 'success');
-                addOutput(`  Risultato finale in R3: ${formatValue(LC2.registers[3])}`, 'success');
+                addOutput(`  Risultato finale in R1: ${formatValue(LC2.registers[1])}`, 'success');
                 LC2.isDebugging = false;
             }
             updateUI();
@@ -966,18 +1017,21 @@
 
         function loadExample() {
             document.getElementById('editor').value = `.ORIG x3000
-LD R1, VAL1         ; R1 = 20
-LD R2, VAL2         ; R2 = 5
-ADD R1, R2, R1      ; R1 = 5 + 20 = 25
-ADD R3, R1, #0      ; R3 = 25 + 0 = 25
-HALT                ; Fine programma
+LEA R0, STRINGA
+AND R1, R1, #0
 
-VAL1 .FILL #20      ; Valore 20
-VAL2 .FILL #5       ; Valore 5
+Ciclo LDR R2, R0, #0
+BRz FINE
+
+ADD R1, R1, #1
+ADD R0, R0, #1
+BRnzp Ciclo
+
+FINE HALT
+STRINGA .STRINGZ "Ciao"
 .END`;
             updateLineNumbers();
-            addOutput('📖 Programma di esempio caricato: 20 + 5 = 25', 'success');
-            addOutput('   Risultato atteso in R3: 25', 'success');
+            addOutput('📖 Programma di esempio caricato: conta lunghezza stringa', 'success');
         }
 
         document.getElementById('editor').addEventListener('input', updateLineNumbers);
